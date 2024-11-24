@@ -1,0 +1,51 @@
+Notes from Learning High-Speed Flight in the Wild
+
+stereo matching for abstracting away depth sensing - avoids sensor artifacts
+planner computes trajectories with a short time horizon
+planner takes inertial measurements and noisy depth image and output high order polynomials representing trajectories and cost estimates
+
+algorithms:
+global path planning
+stereo depth image creation
+Metropolis-Hastings Sampler
+Collision Checking
+model predic control
+
+potentially event camera
+
+priveliged expert
+    calculates global collision free trajectory
+        https://existentialrobotics.org/ref/Liu_AttitudePlanning_RAL18.pdf
+    cost function combines collision cost and deviance cost
+    trajectories are represented as b spline curves
+    generate random samples of trajectories one second into the future based on Metropolis-Hastings sampling with different levels of variance
+    discretize trajectories in 0.1s intervals and check for collision
+    eliminate trajectories with collisions and select top three remaining with lowest cost
+
+student network
+    multimodal input with two branch architecture
+    inputs: depth image, platform velocity, drone attitude, desired direction
+        desired direction represented as a normalized vector heading toward the reference point 1s in future compared to closest reference state
+    visual branch  
+        uses MobileNetV3 to extract features from depth image
+        features are processed by a 1D convolution to generate M = 3 features vectors of size 32
+    inertial branch
+        concactenates platform velocity, attitude, and desired flight direction
+        processed by a four-layer perceptron with [64, 32, 32, 32] hidden nodes and LeakyReLU activations
+        features are processed by a 1D convolution to generate M = 3 features vectors of size 32
+    inertial and visual features are then concactenated  
+    then processed independently for each mode by another four-layer perceptron with [64, 128, 128] hidden nodes and LeakyReLU activations
+    for each mode, final perceptron outputs
+        trajectory as sequence of 10 positions over time
+        collision cost
+
+    network uses three trajectories outputted by expert as ground truth labels
+    uses relaxed winner takes all loss to cope with multimodal nature of the problem
+    predicted collision cost is also trained with ground truth collision cost
+    predicted position sequences are projected onto fifth-order polynomials for each spatial axis independently to ensure continuity in position, velocity, and acceleration
+    the time parameter of the polynomial is scaled to achieve a desired average speed 
+    from the projected trajectories, select those with collision costs close to the minimum
+    the selected trajectory is tracked using a model-predictive controller, which computes the necessary control inputs to follow the path.
+
+global path planning
+   mpl_ros at https://github.com/adithom/mpl_ros 
